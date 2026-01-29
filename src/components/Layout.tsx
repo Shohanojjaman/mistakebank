@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -93,8 +94,9 @@ export function Layout({ children }: LayoutProps) {
             })}
           </nav>
 
-          {/* User Menu */}
+          {/* Theme Toggle & User Menu */}
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {!isLoading && (
               user ? (
                 <DropdownMenu>

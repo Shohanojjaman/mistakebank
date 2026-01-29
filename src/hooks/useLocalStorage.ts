@@ -17,9 +17,9 @@ const defaultData: AppData = {
     { id: '5', name: 'Organic Chemistry', subjectId: '3' },
   ],
   questionTypes: [
-    { id: '1', name: 'Conceptual' },
-    { id: '2', name: 'Numerical' },
-    { id: '3', name: 'Application' },
+    { id: '1', name: 'Conceptual', chapterId: '1' },
+    { id: '2', name: 'Numerical', chapterId: '1' },
+    { id: '3', name: 'Application', chapterId: '2' },
   ],
   questions: [],
   testResults: [],
@@ -33,7 +33,15 @@ export function useLocalStorage() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setData(JSON.parse(stored));
+        const parsedData = JSON.parse(stored);
+        // Migrate old data: add chapterId to types if missing
+        if (parsedData.questionTypes) {
+          parsedData.questionTypes = parsedData.questionTypes.map((type: QuestionType) => ({
+            ...type,
+            chapterId: type.chapterId || parsedData.chapters?.[0]?.id || ''
+          }));
+        }
+        setData(parsedData);
       }
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
@@ -65,10 +73,12 @@ export function useLocalStorage() {
   }, [data, saveData]);
 
   const deleteSubject = useCallback((id: string) => {
+    const chapterIds = data.chapters.filter(c => c.subjectId === id).map(c => c.id);
     saveData({
       ...data,
       subjects: data.subjects.filter(s => s.id !== id),
       chapters: data.chapters.filter(c => c.subjectId !== id),
+      questionTypes: data.questionTypes.filter(t => !chapterIds.includes(t.chapterId)),
       questions: data.questions.filter(q => q.subjectId !== id),
     });
   }, [data, saveData]);
@@ -91,15 +101,23 @@ export function useLocalStorage() {
     saveData({
       ...data,
       chapters: data.chapters.filter(c => c.id !== id),
+      questionTypes: data.questionTypes.filter(t => t.chapterId !== id),
       questions: data.questions.filter(q => q.chapterId !== id),
     });
   }, [data, saveData]);
 
-  // Question Type operations
+  // Question Type operations - now with chapterId
   const addQuestionType = useCallback((type: Omit<QuestionType, 'id'>) => {
     const newType = { ...type, id: crypto.randomUUID() };
     saveData({ ...data, questionTypes: [...data.questionTypes, newType] });
     return newType;
+  }, [data, saveData]);
+
+  const updateQuestionType = useCallback((id: string, updates: Partial<QuestionType>) => {
+    saveData({
+      ...data,
+      questionTypes: data.questionTypes.map(t => t.id === id ? { ...t, ...updates } : t),
+    });
   }, [data, saveData]);
 
   const deleteQuestionType = useCallback((id: string) => {
@@ -171,6 +189,7 @@ export function useLocalStorage() {
     deleteChapter,
     // Question Types
     addQuestionType,
+    updateQuestionType,
     deleteQuestionType,
     // Questions
     addQuestion,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Palette } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,7 +42,7 @@ export default function ManageCategories() {
     data, 
     addSubject, updateSubject, deleteSubject,
     addChapter, updateChapter, deleteChapter,
-    addQuestionType, deleteQuestionType,
+    addQuestionType, updateQuestionType, deleteQuestionType,
   } = useApp();
 
   // Subject state
@@ -59,6 +59,9 @@ export default function ManageCategories() {
 
   // Type state
   const [newTypeName, setNewTypeName] = useState('');
+  const [newTypeChapterId, setNewTypeChapterId] = useState('');
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [editingTypeName, setEditingTypeName] = useState('');
 
   // Subject handlers
   const handleAddSubject = () => {
@@ -117,13 +120,34 @@ export default function ManageCategories() {
 
   // Type handlers
   const handleAddType = () => {
-    if (!newTypeName.trim()) {
+    if (!newTypeName.trim() || !newTypeChapterId) {
+      toast.error('Please enter a type name and select a chapter');
+      return;
+    }
+    addQuestionType({ name: newTypeName.trim(), chapterId: newTypeChapterId });
+    setNewTypeName('');
+    toast.success('Question type added');
+  };
+
+  const handleUpdateType = (id: string) => {
+    if (!editingTypeName.trim()) {
       toast.error('Please enter a type name');
       return;
     }
-    addQuestionType({ name: newTypeName.trim() });
-    setNewTypeName('');
-    toast.success('Question type added');
+    updateQuestionType(id, { name: editingTypeName.trim() });
+    setEditingTypeId(null);
+    toast.success('Type updated');
+  };
+
+  const handleDeleteType = (id: string) => {
+    deleteQuestionType(id);
+    toast.success('Type deleted');
+  };
+
+  // Get subject for a chapter
+  const getSubjectForChapter = (chapterId: string) => {
+    const chapter = data.chapters.find(c => c.id === chapterId);
+    return chapter ? data.subjects.find(s => s.id === chapter.subjectId) : null;
   };
 
   return (
@@ -230,7 +254,7 @@ export default function ManageCategories() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Subject</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This will delete "{subject.name}" and all its chapters and {questionCount} questions. This action cannot be undone.
+                                This will delete "{subject.name}" and all its chapters, types, and {questionCount} questions. This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -304,6 +328,7 @@ export default function ManageCategories() {
                   <div className="space-y-2">
                     {chapters.map((chapter) => {
                       const questionCount = data.questions.filter(q => q.chapterId === chapter.id).length;
+                      const typeCount = data.questionTypes.filter(t => t.chapterId === chapter.id).length;
                       const isEditing = editingChapterId === chapter.id;
 
                       return (
@@ -331,7 +356,7 @@ export default function ManageCategories() {
                               <div>
                                 <span className="font-medium">{chapter.name}</span>
                                 <span className="text-sm text-muted-foreground ml-2">
-                                  {questionCount} questions
+                                  {typeCount} types · {questionCount} questions
                                 </span>
                               </div>
                               <div className="flex items-center gap-1">
@@ -355,7 +380,7 @@ export default function ManageCategories() {
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>Delete Chapter</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        This will delete "{chapter.name}" and {questionCount} questions. This action cannot be undone.
+                                        This will delete "{chapter.name}", its types, and {questionCount} questions. This action cannot be undone.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -392,7 +417,33 @@ export default function ManageCategories() {
           {/* Add Type Form */}
           <div className="rounded-xl border bg-card p-4 shadow-card">
             <Label className="mb-3 block">Add New Question Type</Label>
+            <p className="text-xs text-muted-foreground mb-3">
+              Types are specific to each chapter. Select a chapter first.
+            </p>
             <div className="flex gap-3">
+              <Select value={newTypeChapterId} onValueChange={setNewTypeChapterId}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Select chapter" />
+                </SelectTrigger>
+                <SelectContent>
+                  {data.subjects.map((subject) => {
+                    const chapters = data.chapters.filter(c => c.subjectId === subject.id);
+                    if (chapters.length === 0) return null;
+                    return (
+                      <div key={subject.id}>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                          {subject.name}
+                        </div>
+                        {chapters.map((chapter) => (
+                          <SelectItem key={chapter.id} value={chapter.id}>
+                            {chapter.name}
+                          </SelectItem>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               <Input
                 placeholder="Type name (e.g., Conceptual)"
                 value={newTypeName}
@@ -406,55 +457,110 @@ export default function ManageCategories() {
             </div>
           </div>
 
-          {/* Types List */}
-          <div className="space-y-2">
-            {data.questionTypes.map((type) => {
-              const questionCount = data.questions.filter(q => q.typeId === type.id).length;
+          {/* Types List (grouped by subject → chapter) */}
+          <div className="space-y-4">
+            {data.subjects.map((subject) => {
+              const chapters = data.chapters.filter(c => c.subjectId === subject.id);
+              const hasTypes = chapters.some(ch => 
+                data.questionTypes.some(t => t.chapterId === ch.id)
+              );
+              if (!hasTypes) return null;
 
               return (
-                <div
-                  key={type.id}
-                  className="flex items-center justify-between p-4 rounded-xl border bg-card"
-                >
-                  <div>
-                    <span className="font-medium">{type.name}</span>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      {questionCount} questions
-                    </span>
+                <div key={subject.id}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <SubjectBadge name={subject.name} color={subject.color} size="sm" />
                   </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Question Type</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete "{type.name}"? Questions with this type will need to be reassigned.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => {
-                            deleteQuestionType(type.id);
-                            toast.success('Question type deleted');
-                          }}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <div className="space-y-3 ml-4">
+                    {chapters.map((chapter) => {
+                      const types = data.questionTypes.filter(t => t.chapterId === chapter.id);
+                      if (types.length === 0) return null;
+
+                      return (
+                        <div key={chapter.id}>
+                          <div className="text-sm font-medium text-muted-foreground mb-1">
+                            {chapter.name}
+                          </div>
+                          <div className="space-y-1 ml-4">
+                            {types.map((type) => {
+                              const isEditing = editingTypeId === type.id;
+
+                              return (
+                                <div
+                                  key={type.id}
+                                  className="flex items-center justify-between p-2 rounded-lg border bg-card"
+                                >
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-2 flex-1">
+                                      <Input
+                                        value={editingTypeName}
+                                        onChange={(e) => setEditingTypeName(e.target.value)}
+                                        className="flex-1 h-8"
+                                        autoFocus
+                                      />
+                                      <Button size="sm" onClick={() => handleUpdateType(type.id)}>
+                                        <Check className="h-3 w-3" />
+                                      </Button>
+                                      <Button size="sm" variant="outline" onClick={() => setEditingTypeId(null)}>
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span className="text-sm">{type.name}</span>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 w-7 p-0"
+                                          onClick={() => {
+                                            setEditingTypeId(type.id);
+                                            setEditingTypeName(type.name);
+                                          }}
+                                        >
+                                          <Edit2 className="h-3 w-3" />
+                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive">
+                                              <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Delete Type</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Delete "{type.name}"? This action cannot be undone.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => handleDeleteType(type.id)}
+                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                              >
+                                                Delete
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
             {data.questionTypes.length === 0 && (
               <p className="text-center py-8 text-muted-foreground">
-                No question types yet. Add your first type above.
+                No types yet. Add a chapter first, then create types for it.
               </p>
             )}
           </div>
