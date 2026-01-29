@@ -13,6 +13,7 @@ export interface Chapter {
 export interface QuestionType {
   id: string;
   name: string;
+  chapterId: string; // Types are now under chapters
 }
 
 export interface Question {
@@ -26,6 +27,8 @@ export interface Question {
   };
   correctAnswer: 'A' | 'B' | 'C' | 'D';
   explanation?: string;
+  explanationImageUrl?: string; // New: image URL for explanation
+  references?: string[]; // New: reference tags
   subjectId: string;
   chapterId: string;
   typeId: string;

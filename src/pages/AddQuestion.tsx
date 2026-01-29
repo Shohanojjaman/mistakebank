@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useApp } from '@/contexts/AppContext';
+import { ReferenceTagInput } from '@/components/ReferenceTagInput';
+import { ImageUpload } from '@/components/ImageUpload';
 import { toast } from 'sonner';
 
 export default function AddQuestion() {
@@ -34,19 +36,22 @@ export default function AddQuestion() {
     optionD: existingQuestion?.options.D || '',
     correctAnswer: existingQuestion?.correctAnswer || '' as 'A' | 'B' | 'C' | 'D' | '',
     explanation: existingQuestion?.explanation || '',
+    explanationImageUrl: existingQuestion?.explanationImageUrl || '',
+    references: existingQuestion?.references || [] as string[],
     subjectId: existingQuestion?.subjectId || '',
     chapterId: existingQuestion?.chapterId || '',
     typeId: existingQuestion?.typeId || '',
   });
 
   const filteredChapters = data.chapters.filter(c => c.subjectId === formData.subjectId);
+  const filteredTypes = data.questionTypes.filter(t => t.chapterId === formData.chapterId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.text || !formData.optionA || !formData.optionB || 
         !formData.optionC || !formData.optionD || !formData.correctAnswer ||
-        !formData.subjectId || !formData.chapterId || !formData.typeId) {
+        !formData.subjectId || !formData.chapterId) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -61,9 +66,11 @@ export default function AddQuestion() {
       },
       correctAnswer: formData.correctAnswer as 'A' | 'B' | 'C' | 'D',
       explanation: formData.explanation.trim(),
+      explanationImageUrl: formData.explanationImageUrl || undefined,
+      references: formData.references.length > 0 ? formData.references : undefined,
       subjectId: formData.subjectId,
       chapterId: formData.chapterId,
-      typeId: formData.typeId,
+      typeId: formData.typeId || '',
     };
 
     if (editId && existingQuestion) {
@@ -82,7 +89,7 @@ export default function AddQuestion() {
     
     if (!formData.text || !formData.optionA || !formData.optionB || 
         !formData.optionC || !formData.optionD || !formData.correctAnswer ||
-        !formData.subjectId || !formData.chapterId || !formData.typeId) {
+        !formData.subjectId || !formData.chapterId) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -97,9 +104,11 @@ export default function AddQuestion() {
       },
       correctAnswer: formData.correctAnswer as 'A' | 'B' | 'C' | 'D',
       explanation: formData.explanation.trim(),
+      explanationImageUrl: formData.explanationImageUrl || undefined,
+      references: formData.references.length > 0 ? formData.references : undefined,
       subjectId: formData.subjectId,
       chapterId: formData.chapterId,
-      typeId: formData.typeId,
+      typeId: formData.typeId || '',
     });
 
     toast.success('Question added! Add another one.');
@@ -114,6 +123,8 @@ export default function AddQuestion() {
       optionD: '',
       correctAnswer: '',
       explanation: '',
+      explanationImageUrl: '',
+      references: [],
     }));
   };
 
@@ -144,7 +155,8 @@ export default function AddQuestion() {
               onValueChange={(value) => setFormData(prev => ({ 
                 ...prev, 
                 subjectId: value,
-                chapterId: '' 
+                chapterId: '',
+                typeId: ''
               }))}
             >
               <SelectTrigger>
@@ -164,7 +176,11 @@ export default function AddQuestion() {
             <Label htmlFor="chapter">Chapter *</Label>
             <Select
               value={formData.chapterId}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, chapterId: value }))}
+              onValueChange={(value) => setFormData(prev => ({ 
+                ...prev, 
+                chapterId: value,
+                typeId: ''
+              }))}
               disabled={!formData.subjectId}
             >
               <SelectTrigger>
@@ -181,23 +197,40 @@ export default function AddQuestion() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="type">Type *</Label>
+            <Label htmlFor="type">Type</Label>
             <Select
               value={formData.typeId}
               onValueChange={(value) => setFormData(prev => ({ ...prev, typeId: value }))}
+              disabled={!formData.chapterId}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select type" />
+                <SelectValue placeholder="Select type (optional)" />
               </SelectTrigger>
               <SelectContent>
-                {data.questionTypes.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.name}
-                  </SelectItem>
-                ))}
+                {filteredTypes.length > 0 ? (
+                  filteredTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    No types for this chapter
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        {/* Reference Tags */}
+        <div className="space-y-2">
+          <Label>References (Tags)</Label>
+          <ReferenceTagInput
+            tags={formData.references}
+            onChange={(tags) => setFormData(prev => ({ ...prev, references: tags }))}
+            placeholder="Add reference (e.g., IIT JEE 2023)"
+          />
         </div>
 
         {/* Question Text */}
@@ -265,6 +298,15 @@ export default function AddQuestion() {
             placeholder="Add an explanation for the correct answer..."
             value={formData.explanation}
             onChange={(e) => setFormData(prev => ({ ...prev, explanation: e.target.value }))}
+          />
+        </div>
+
+        {/* Explanation Image */}
+        <div className="space-y-2">
+          <Label>Explanation Image (Optional)</Label>
+          <ImageUpload
+            imageUrl={formData.explanationImageUrl}
+            onImageChange={(url) => setFormData(prev => ({ ...prev, explanationImageUrl: url || '' }))}
           />
         </div>
 
